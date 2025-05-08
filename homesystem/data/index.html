@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ESP8266 LED and Temperature Monitoring</title>
+  <style>
+    body {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background-color: #f9f9f9;
+      color: #333;
+    }
+    h1 {
+      margin-bottom: 20px;
+    }
+    button {
+      padding: 10px 20px;
+      font-size: 16px;
+      margin: 20px 0;
+      cursor: pointer;
+      border: none;
+      background-color: #4caf50;
+      color: white;
+      border-radius: 5px;
+      transition: background-color 0.3s ease;
+    }
+    button:hover {
+      background-color: #45a049;
+    }
+    #instructions {
+      margin: 10px 0 20px;
+      font-size: 14px;
+      color: #666;
+    }
+    h3 {
+      margin-bottom: 10px;
+    }
+    p {
+      margin: 5px 0;
+      font-size: 18px;
+    }
+    #temperature {
+      font-weight: bold;
+      color: #007BFF;
+    }
+  </style>
+</head>
+<body>
+  <h1>ESP8266 LED and Temperature Monitoring</h1>
+  <button id="start-record-btn" onclick="startRecording()">Start Voice Control</button>
+  <p id="instructions">Press the button and say "turn on" or "turn off" for LED, "turn on fan" or "turn off fan" for fan.</p>
+  
+  <div>
+    <h3>Current Temperature</h3>
+    <p>Temperature: <span id="temperature">N/A</span> °C</p>
+  </div>
+  
+  <script>
+    var recognition;
+    if ('webkitSpeechRecognition' in window) {
+      recognition = new webkitSpeechRecognition();
+    } else {
+      recognition = new SpeechRecognition();
+    }
+
+    // 配置语音识别
+    recognition.lang = 'en-US';
+    recognition.continuous = true;
+    recognition.interimResults = false;
+
+    recognition.onresult = function(event) {
+      var transcript = event.results[event.resultIndex][0].transcript.trim().toLowerCase();
+      document.getElementById('instructions').innerText = 'You said: ' + transcript;
+      
+      if (transcript.includes('turn on') && transcript.includes('fan')) {
+        controlFan('on');
+      } else if (transcript.includes('turn off') && transcript.includes('fan')) {
+        controlFan('off');
+      } else if (transcript.includes('turn on')) {
+        controlLED('on');
+      } else if (transcript.includes('turn off')) {
+        controlLED('off');
+      }
+    };
+
+    recognition.onend = function() {
+      document.getElementById('instructions').innerText = 'Voice control stopped.';
+    };
+
+    function startRecording() {
+      recognition.start();
+      document.getElementById('instructions').innerText = 'Voice control started. Speak into the microphone.';
+    }
+
+    function controlLED(action) {
+      var xhr = new XMLHttpRequest();
+      xhr.open('POST', '/LED', true);
+      xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+      xhr.send('action=' + action);
+    }
+
+    function controlFan(action) {
+      var xhr = new XMLHttpRequest();
+      xhr.open('POST', '/fanControl', true);  // fanControl 用来控制风扇
+      xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+      xhr.send('action=' + action);
+    }
+
+    // 定时获取温度数据并更新页面
+    function updateTemperature() {
+      var xhr = new XMLHttpRequest();
+      xhr.open('GET', '/getData', true);
+      xhr.onload = function() {
+        if (xhr.status === 200) {
+          try {
+            var data = JSON.parse(xhr.responseText);
+            document.getElementById('temperature').innerText = data.temperature;
+          } catch (error) {
+            document.getElementById('temperature').innerText = 'Error';
+          }
+        } else {
+          document.getElementById('temperature').innerText = 'Failed to fetch';
+        }
+      };
+      xhr.send();
+    }
+
+    // 页面加载时启动温度更新，每5秒刷新一次
+    window.onload = function() {
+      updateTemperature();
+      setInterval(updateTemperature, 5000);
+    };
+  </script>
+</body>
+</html>
+
